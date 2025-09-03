@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const { Schema } = mongoose;
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
+const jwt = require('jsonwebtoken');
 
 const userSchema = new Schema(
   {
@@ -24,6 +25,7 @@ const userSchema = new Schema(
     password: {
       type: String,
       required: true,
+      Selection: false,
     },
     accountVerified: {
       type: Boolean,
@@ -51,10 +53,20 @@ userSchema.methods.compareHashPassword = async function (userEnteredPassword) {
   return await bcrypt.compare(userEnteredPassword, this.password);
 };
 
-// userSchema.methods.generateToken = function () {
-//     const token1 = Math.floor(Math.random() );
-//     const token = crypto.createHash('sha256').update()
-// };
+userSchema.methods.generateToken = function () {
+  const token = crypto.randomBytes(20).toString('hex');
+  const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+  const mytoken = jwt.sign(tokenHash, process.env.JWT_TOKEN_SECRECT, {
+    expiresIn: process.env.JWT_TOKEN_EXPIRES,
+  });
+  return tokenHash;
+};
+
+userSchema.methods.generateVerificationCode = async function () {
+  // always generate five digits number in every case
+  const fiveDigitNumbers = Math.floor(Math.random() * 90000) + 10000;
+  return fiveDigitNumbers;
+};
 
 const User = mongoose.model('user', userSchema);
 module.exports = { User };

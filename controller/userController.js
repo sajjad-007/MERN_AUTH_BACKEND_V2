@@ -1,6 +1,66 @@
 const { catchAsyncError } = require('../middleware/asyncError');
 const { ErrorHandler } = require('../middleware/error');
 const { User } = require('../model/userSchema');
+const { emailTemplate } = require('../utilis/emailTemplete');
+const { sendVerificationEmail } = require('../utilis/nodeMailer');
+const twilio = require('twilio'); // Or, for ESM: import twilio from "twilio";
+
+// Find your Account SID and Auth Token at twilio.com/console
+// and set the environment variables. See http://twil.io/secure
+// const accountSid = process.env.TWILIO_ACCOUNT_SID;
+
+const accountSid = 'AC589df1ece544ede6dbdefeccac884f3f';
+// const authToken = process.env.TWILIO_AUTH_TOKEN;
+const authToken = '3cf388ba3f69fc0ec1f3a9cb47145a19';
+const client = twilio(accountSid, authToken);
+
+const userChoosenVerificationMethod = async (
+  user,
+  email,
+  phoneNumber,
+  verificationCode,
+  accountVerificationMethod,
+  res,
+  next
+) => {
+  try {
+    if (accountVerificationMethod == 'email') {
+      const template = emailTemplate(verificationCode);
+      sendVerificationEmail(email, 'Verification email sent!', template);
+      res.status(200).json({
+        success: true,
+        message: `Email sent at ${email}`,
+        email,
+        phoneNumber,
+        user,
+      });
+    } else if (accountVerificationMethod === 'phone') {
+      const verificationCodeWithSpace = verificationCode
+        .toString()
+        .split('')
+        .join(' ');
+      const response = client.calls.create({
+        // from: process.env.USER_EMAIL,
+        to: +8801824750778,
+        from: +8801824750778,
+        twiml: `<Response> <Say> Your OTP is ${verificationCodeWithSpace}, Your OTP is ${verificationCodeWithSpace} </Say> </Response>`,
+      });
+      if (!response) {
+        return next(new ErrorHandler('Error from twilio', 401));
+      }
+      res.status(200).json({
+        success: true,
+        message: 'We will send your OTP through a phone call.',
+        user,
+      });
+    } else {
+      console.log('else condition');
+      return next(new ErrorHandler('Invalid verification method', 404));
+    }
+  } catch (error) {
+    return next(new ErrorHandler('Error from verification method', 500));
+  }
+};
 
 const register = catchAsyncError(async (req, res, next) => {
   //user input
@@ -23,14 +83,34 @@ const register = catchAsyncError(async (req, res, next) => {
   ) {
     return next(new ErrorHandler('Credentials Missing!', 401));
   }
-  //save user on database
-  const isExistingUser = await User.find({
+  const phoneNumberValidate = phoneNumber => {
+    // only Bangladesh's phone number can verifi their otp through phone number
+    const phoneRegx = /^\+880\d{10}$/;
+    return phoneRegx.test(phoneNumber);
+  };
+  if (!phoneNumberValidate(phoneNumber)) {
+    return next(new ErrorHandler('Phone Number format Invalid!', 401));
+  }
+  //find user into database and see is user already register or exist into database
+  const isUserAlreadyExist = await User.findOne({
+    $or: [
+      { email: email, accountVerified: true },
+      { phoneNumber: phoneNumber, accountVerified: true },
+    ],
+  });
+  if (isUserAlreadyExist) {
+    return next(new ErrorHandler('This Email or Number Already Exist!', 400));
+  }
+
+  // if a user tried to register multiple time but failed
+  const userTotalAttemptToRegister = await User.find({
     $or: [
       { email: email, accountVerified: false },
       { phoneNumber: phoneNumber, accountVerified: false },
     ],
   });
-  if (isExistingUser.length > 3) {
+
+  if (userTotalAttemptToRegister.length > 3) {
     return next(
       new ErrorHandler(
         "You've just exceded your attempt limit!, plz try half an hour later",
@@ -38,21 +118,8 @@ const register = catchAsyncError(async (req, res, next) => {
       )
     );
   }
-  // ? this my comment
-  // *this is my comment
-  //todo  hello
-  let user;
-  if (isExistingUser.length > 0) {
-    const nweuser = await User.deleteMany({
-      $or: [
-        { email: email, accountVerified: false },
-        { phoneNumber: phoneNumber, accountVerified: false },
-        { $gt: { creadeAt: -1 } },
-      ],
-    //   $ne:[ $gt: {createdAt:-1}]
-    });
-  }
-  const usersss = await User.create({
+
+  const user = await User.create({
     image,
     fullName,
     email,
@@ -60,14 +127,24 @@ const register = catchAsyncError(async (req, res, next) => {
     password,
     accountVerificationMethod,
   });
-  if (!usersss) {
+  if (!user) {
     return next(new ErrorHandler("User info couldn't save!", 400));
   }
-  res.status(200).json({
-    success: true,
-    message: 'success',
-  });
-  console.log('user saved successfully!');
+  const verificationCode = await user.generateVerificationCode();
+  await userChoosenVerificationMethod(
+    user,
+    email,
+    phoneNumber,
+    verificationCode,
+    accountVerificationMethod,
+    res,
+    next
+  );
+  user.verificationCode = verificationCode;
+  user.verificationCodeExpire = Date.now() * 5 * 60 * 1000;
+  user.save();
+
+  console.log('user info saved successfully!');
 });
 
 module.exports = { register };
