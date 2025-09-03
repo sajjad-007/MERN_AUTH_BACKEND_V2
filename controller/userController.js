@@ -7,11 +7,10 @@ const twilio = require('twilio'); // Or, for ESM: import twilio from "twilio";
 
 // Find your Account SID and Auth Token at twilio.com/console
 // and set the environment variables. See http://twil.io/secure
-// const accountSid = process.env.TWILIO_ACCOUNT_SID;
+const accountSid = process.env.TWILIO_ACCOUNT_SID;
 
-const accountSid = 'AC589df1ece544ede6dbdefeccac884f3f';
-// const authToken = process.env.TWILIO_AUTH_TOKEN;
-const authToken = '3cf388ba3f69fc0ec1f3a9cb47145a19';
+const authToken = process.env.TWILIO_AUTH_TOKEN;
+
 const client = twilio(accountSid, authToken);
 
 const userChoosenVerificationMethod = async (
