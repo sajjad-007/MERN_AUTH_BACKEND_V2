@@ -3,12 +3,10 @@ const { dbConnect } = require('./database/dbConnection');
 const cloudinary = require('cloudinary').v2;
 
 cloudinary.config({
-  cloud_name: 'my_cloud_name',
-  api_key: 'my_key',
-  api_secret: 'my_secret',
+  cloud_name: process.env.CLOUDINARY_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
 });
-
-
 
 dbConnect().then(() => {
   app.listen(process.env.PORT, () => {

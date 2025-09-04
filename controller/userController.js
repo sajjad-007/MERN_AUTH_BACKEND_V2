@@ -3,16 +3,16 @@ const { ErrorHandler } = require('../middleware/error');
 const { User } = require('../model/userSchema');
 const { emailTemplate } = require('../utilis/emailTemplete');
 const { sendVerificationEmail } = require('../utilis/nodeMailer');
+const cloudinary = require('cloudinary').v2;
 const twilio = require('twilio'); // Or, for ESM: import twilio from "twilio";
 
 // Find your Account SID and Auth Token at twilio.com/console
 // and set the environment variables. See http://twil.io/secure
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
-
 const authToken = process.env.TWILIO_AUTH_TOKEN;
-
 const client = twilio(accountSid, authToken);
 
+// OTP Verification using email or phone number
 const userChoosenVerificationMethod = async (
   user,
   email,
@@ -61,10 +61,11 @@ const userChoosenVerificationMethod = async (
   }
 };
 
+// User registration
 const register = catchAsyncError(async (req, res, next) => {
   //user input
   const {
-    image,
+    profile,
     fullName,
     email,
     phoneNumber,
@@ -72,8 +73,30 @@ const register = catchAsyncError(async (req, res, next) => {
     accountVerificationMethod,
   } = req.body;
   // validation
+  if (!req.files || Object.keys(req.files).length === 0) {
+    return next(new ErrorHandler('No file were uploaded!'));
+  }
+  const { image } = req.files;
+
+  //upload your image into cloudinary
+  const cloudinaryResponseForProfileImg = await cloudinary.uploader.upload(
+    image.tempFilePath,
+    {
+      folder: 'AUTH_V2',
+    }
+  );
   if (
-    !image ||
+    !cloudinaryResponseForProfileImg ||
+    cloudinaryResponseForProfileImg.error
+  ) {
+    console.error(
+      'cloudinary error',
+      cloudinaryResponseForProfileImg.error || 'Unknown cloudniray error'
+    );
+    return next(new ErrorHandler('Image not fuond', 404));
+  }
+
+  if (
     !fullName ||
     !email ||
     !phoneNumber ||
@@ -118,14 +141,19 @@ const register = catchAsyncError(async (req, res, next) => {
     );
   }
 
+  // Upload Profile profile
   const user = await User.create({
-    image,
+    profile: {
+      public_id: cloudinaryResponseForProfileImg.public_id,
+      secure_url: cloudinaryResponseForProfileImg.secure_url,
+    },
     fullName,
     email,
     phoneNumber,
     password,
     accountVerificationMethod,
   });
+  console.log(cloudinaryResponseForProfileImg);
   if (!user) {
     return next(new ErrorHandler("User info couldn't save!", 400));
   }

@@ -6,9 +6,15 @@ const jwt = require('jsonwebtoken');
 
 const userSchema = new Schema(
   {
-    image: {
-      type: String,
-      required: true,
+    profile: {
+      public_id: {
+        type: String,
+        required: true,
+      },
+      secure_url: {
+        type: String,
+        required: true,
+      },
     },
     fullName: {
       type: String,
