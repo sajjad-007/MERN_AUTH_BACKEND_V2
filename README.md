@@ -14,4 +14,4 @@ AUTHENTICATION APPLICATION
 
 # OTP VERIFICATION
 
-1.
+1. find latest user using sort({createdAt: -1}), it will give me latest register. 

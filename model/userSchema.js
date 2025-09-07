@@ -10,27 +10,33 @@ const userSchema = new Schema(
       public_id: {
         type: String,
         required: true,
+        trim: true,
       },
       secure_url: {
         type: String,
         required: true,
+        trim: true,
       },
     },
     fullName: {
       type: String,
       required: true,
+      trim: true,
     },
     email: {
       type: String,
       required: true,
+      trim: true,
     },
     phoneNumber: {
       type: Number,
       required: true,
+      trim: true,
     },
     password: {
       type: String,
       required: true,
+      trim: true,
       // select: false,
     },
     accountVerified: {
@@ -46,12 +52,11 @@ const userSchema = new Schema(
   { timestamps: true }
 );
 
-userSchema.pre('save', async function () {
-  if (!this.isModified === this.password) {
-    next();
+userSchema.pre('save', async function (next) {
+  if (!this.isModified('password')) {
+    return next();
   }
-  const hassPass = await bcrypt.hash(this.password, 10);
-  return this.password = hassPass;
+  this.password = await bcrypt.hash(this.password, 10);
 });
 
 userSchema.methods.compareHashPassword = async function (userEnteredPassword) {

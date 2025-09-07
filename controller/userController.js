@@ -6,7 +6,7 @@ const { genereateJwtTokenForBrowser } = require('../utilis/jwtToken');
 const { sendVerificationEmail } = require('../utilis/nodeMailer');
 const cloudinary = require('cloudinary').v2;
 const twilio = require('twilio'); // Or, for ESM: import twilio from "twilio";
-
+const bcrypt = require('bcrypt');
 // Find your Account SID and Auth Token at twilio.com/console
 // and set the environment variables. See http://twil.io/secure
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
@@ -174,8 +174,6 @@ const register = catchAsyncError(async (req, res, next) => {
   console.log('user info saved successfully!');
 });
 
-
-
 const verifyOtp = catchAsyncError(async (req, res, next) => {
   try {
     const { email, phoneNumber, otp } = req.body;
@@ -195,7 +193,7 @@ const verifyOtp = catchAsyncError(async (req, res, next) => {
     }
 
     let user;
-    
+
     if (findUnverifiedUser.length > 1) {
       user = findUnverifiedUser[0];
       // $ne = Not Equal
@@ -214,8 +212,7 @@ const verifyOtp = catchAsyncError(async (req, res, next) => {
     if (user.verificationCode !== otp) {
       return next(new ErrorHandler("OTP didn't match!", 401));
     }
-    
-    
+
     const currentTime = Date.now();
     const otpExpireTime = new Date(user.verificationCodeExpire).getTime();
     if (currentTime > otpExpireTime) {
@@ -225,14 +222,40 @@ const verifyOtp = catchAsyncError(async (req, res, next) => {
     user.verificationCode = null;
     user.verificationCodeExpire = null;
     user.accountVerified = true;
-    
+
     await user.save();
 
     genereateJwtTokenForBrowser(user, res, 200, 'Verification successfull!');
   } catch (error) {
-    console.error(error);s
+    console.error(error);
+    s;
     return next(new ErrorHandler('Internal server Error', 500));
   }
 });
 
-module.exports = { register, verifyOtp };
+const login = catchAsyncError(async (req, res, next) => {
+  const { email, password } = req.body;
+  if (!email || !password) {
+    return next(new ErrorHandler('Credentials Missing!', 401));
+  }
+  const user = await User.findOne({ email: email, accountVerified: true });
+  if (!user) {
+    return next(new ErrorHandler('User Not found!', 401));
+  }
+  const isPasswordMatch = await user.compareHashPassword(password);
+  console.log(isPasswordMatch);
+  if (!isPasswordMatch) {
+    return next(new ErrorHandler('Invalid Email or Password!', 401));
+  }
+
+  genereateJwtTokenForBrowser(user, res, 200, 'Login Successfull!');
+});
+
+const forgotPassword = catchAsyncError(async (req, res, next) => {
+  const { email } = req.body;
+  if (!email) {
+    return next(new ErrorHandler('Enter Your Email!', 401));
+  }
+});
+
+module.exports = { register, verifyOtp, login, forgotPassword };
