@@ -2,6 +2,7 @@ const { catchAsyncError } = require('../middleware/asyncError');
 const { ErrorHandler } = require('../middleware/error');
 const { User } = require('../model/userSchema');
 const { emailTemplate } = require('../utilis/emailTemplete');
+const { genereateJwtTokenForBrowser } = require('../utilis/jwtToken');
 const { sendVerificationEmail } = require('../utilis/nodeMailer');
 const cloudinary = require('cloudinary').v2;
 const twilio = require('twilio'); // Or, for ESM: import twilio from "twilio";
@@ -53,7 +54,6 @@ const userChoosenVerificationMethod = async (
         user,
       });
     } else {
-      console.log('else condition');
       return next(new ErrorHandler('Invalid verification method', 404));
     }
   } catch (error) {
@@ -95,7 +95,7 @@ const register = catchAsyncError(async (req, res, next) => {
     );
     return next(new ErrorHandler('Image not fuond', 404));
   }
-
+  // validation
   if (
     !fullName ||
     !email ||
@@ -153,7 +153,7 @@ const register = catchAsyncError(async (req, res, next) => {
     password,
     accountVerificationMethod,
   });
-  console.log(cloudinaryResponseForProfileImg);
+  // console.log(cloudinaryResponseForProfileImg);
   if (!user) {
     return next(new ErrorHandler("User info couldn't save!", 400));
   }
@@ -174,4 +174,65 @@ const register = catchAsyncError(async (req, res, next) => {
   console.log('user info saved successfully!');
 });
 
-module.exports = { register };
+
+
+const verifyOtp = catchAsyncError(async (req, res, next) => {
+  try {
+    const { email, phoneNumber, otp } = req.body;
+
+    //Find all unverified users with the same email or phoneNumber.
+    //Keep the most recently created one, using sort()
+    //Delete the others. using deleteMany()
+    const findUnverifiedUser = await User.find({
+      $or: [
+        { email: email, accountVerified: false },
+        { phoneNumber: phoneNumber, accountVerified: false },
+      ],
+    }).sort({ createdAt: -1 });
+
+    if (!findUnverifiedUser) {
+      return next(new ErrorHandler('User not found!', 404));
+    }
+
+    let user;
+    
+    if (findUnverifiedUser.length > 1) {
+      user = findUnverifiedUser[0];
+      // $ne = Not Equal
+      //Returns all unverified users except the one with (user._id)
+      const deleteUnverifieduser = await User.deleteMany({
+        _id: { $ne: user._id },
+        $or: [
+          { email: email, accountVerified: false },
+          { phoneNumber: phoneNumber, accountVerified: false },
+        ],
+      });
+    } else {
+      user = findUnverifiedUser[0];
+    }
+
+    if (user.verificationCode !== otp) {
+      return next(new ErrorHandler("OTP didn't match!", 401));
+    }
+    
+    
+    const currentTime = Date.now();
+    const otpExpireTime = new Date(user.verificationCodeExpire).getTime();
+    if (currentTime > otpExpireTime) {
+      return next(new ErrorHandler('OTP Expire or Invalid!', 401));
+    }
+
+    user.verificationCode = null;
+    user.verificationCodeExpire = null;
+    user.accountVerified = true;
+    
+    await user.save();
+
+    genereateJwtTokenForBrowser(user, res, 200, 'Verification successfull!');
+  } catch (error) {
+    console.error(error);s
+    return next(new ErrorHandler('Internal server Error', 500));
+  }
+});
+
+module.exports = { register, verifyOtp };

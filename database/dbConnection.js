@@ -6,12 +6,13 @@ const dbConnect = async (req, res, next) => {
       dbName: 'AUTHV2',
     });
     if (!connectingToDB) {
-      return next(new ErrorHandler('database connection failed', 401));
+      // return next(new ErrorHandler('', 401));
+      console.error('database connection failed');
     }
     console.log('Database Connection Successfull!');
   } catch (error) {
     console.error('Error from DB Connecting', error);
-    return next(new ErrorHandler('database connection error', 500));
+    // return next(new ErrorHandler('database connection error', 500));
   }
 };
 

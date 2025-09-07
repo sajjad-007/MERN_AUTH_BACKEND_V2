@@ -31,7 +31,7 @@ const userSchema = new Schema(
     password: {
       type: String,
       required: true,
-      Selection: false,
+      // select: false,
     },
     accountVerified: {
       type: Boolean,
@@ -41,7 +41,7 @@ const userSchema = new Schema(
     verificationCodeExpire: String,
     accountVerificationMethod: String,
     resetVerificationToken: String,
-    verificationTokenEXpire: String,
+    resetVerificationTokenEXpire: String,
   },
   { timestamps: true }
 );
@@ -51,8 +51,7 @@ userSchema.pre('save', async function () {
     next();
   }
   const hassPass = await bcrypt.hash(this.password, 10);
-  this.password = hassPass;
-  return;
+  return this.password = hassPass;
 });
 
 userSchema.methods.compareHashPassword = async function (userEnteredPassword) {
@@ -60,12 +59,20 @@ userSchema.methods.compareHashPassword = async function (userEnteredPassword) {
 };
 
 userSchema.methods.generateToken = function () {
-  const token = crypto.randomBytes(20).toString('hex');
-  const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
-  const mytoken = jwt.sign(tokenHash, process.env.JWT_TOKEN_SECRECT, {
-    expiresIn: process.env.JWT_TOKEN_EXPIRES,
+  return jwt.sign({ id: this._id }, process.env.JWT_TOKEN_SECRECT, {
+    expiresIn: '5d',
   });
-  return tokenHash;
+};
+
+userSchema.methods.generateResetToken = function () {
+  const token = crypto.randomBytes(20).toString('hex');
+  const resetTokenHash = crypto
+    .createHash('sha256')
+    .update(token)
+    .digest('hex');
+  this.resetVerificationToken = resetTokenHash;
+  this.resetVerificationTokenEXpire = Date.now() + 20 * 60 * 1000;
+  return token;
 };
 
 userSchema.methods.generateVerificationCode = async function () {
