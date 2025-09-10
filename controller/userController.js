@@ -256,6 +256,24 @@ const forgotPassword = catchAsyncError(async (req, res, next) => {
   if (!email) {
     return next(new ErrorHandler('Enter Your Email!', 401));
   }
+  const user = await User.findOne({
+    $or: [{ email: email, accountVerified: true }],
+  });
+  if (!user) {
+    return next(new ErrorHandler('User not found!', 404));
+  }
+  const token = await user.generatePasswordResetToken();
+  if(!token){
+    return next(new ErrorHandler("token not found"),401)
+  }
+  const url = `${process.env.FORNTEND_URL}/forgot/password/${token}`;
+  const message = `Click this URL below to reset your Password. \n \n ${url} \n \m If you didn't request this, you can safely ignore this email.`;
+
+  sendVerificationEmail(email, 'Please check your email!', message);
+  res.status(200).json({
+    success: true,
+    message: `Please check your email!`,
+  });
 });
 
 module.exports = { register, verifyOtp, login, forgotPassword };

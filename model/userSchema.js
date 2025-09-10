@@ -69,7 +69,13 @@ userSchema.methods.generateToken = function () {
   });
 };
 
-userSchema.methods.generateResetToken = function () {
+userSchema.methods.generateVerificationCode = async function () {
+  // always generate five digits number in every case
+  const fiveDigitNumbers = Math.floor(Math.random() * 90000) + 10000;
+  return fiveDigitNumbers;
+};
+
+userSchema.methods.generatePasswordResetToken = function () {
   const token = crypto.randomBytes(20).toString('hex');
   const resetTokenHash = crypto
     .createHash('sha256')
@@ -78,12 +84,6 @@ userSchema.methods.generateResetToken = function () {
   this.resetVerificationToken = resetTokenHash;
   this.resetVerificationTokenEXpire = Date.now() + 20 * 60 * 1000;
   return token;
-};
-
-userSchema.methods.generateVerificationCode = async function () {
-  // always generate five digits number in every case
-  const fiveDigitNumbers = Math.floor(Math.random() * 90000) + 10000;
-  return fiveDigitNumbers;
 };
 
 const User = mongoose.model('user', userSchema);

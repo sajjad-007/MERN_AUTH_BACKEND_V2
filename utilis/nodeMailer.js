@@ -4,12 +4,12 @@ const sendVerificationEmail = async (
   email,
   subject,
   emailTemplate,
-  textMessage,
+  textMessage
 ) => {
   const transporter = nodemailer.createTransport({
     host: process.env.SMPT_HOST,
     port: process.env.SMPT_PORT,
-    service: "gmail",
+    service: 'gmail',
     secure: true,
     auth: {
       user: process.env.USER_EMAIL,
@@ -21,7 +21,7 @@ const sendVerificationEmail = async (
     to: email,
     subject: subject,
     html: emailTemplate || '',
-    // text: textMessage || '',
+    text: textMessage || '',
   });
 
   return info.messageId;
