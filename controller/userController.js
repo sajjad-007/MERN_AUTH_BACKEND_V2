@@ -7,6 +7,7 @@ const { sendVerificationEmail } = require('../utilis/nodeMailer');
 const cloudinary = require('cloudinary').v2;
 const twilio = require('twilio'); // Or, for ESM: import twilio from "twilio";
 const bcrypt = require('bcrypt');
+const crypto = require('crypto');
 // Find your Account SID and Auth Token at twilio.com/console
 // and set the environment variables. See http://twil.io/secure
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
@@ -250,7 +251,7 @@ const login = catchAsyncError(async (req, res, next) => {
 
   genereateJwtTokenForBrowser(user, res, 200, 'Login Successfull!');
 });
-
+//forgot password
 const forgotPassword = catchAsyncError(async (req, res, next) => {
   const { email } = req.body;
   if (!email) {
@@ -262,18 +263,45 @@ const forgotPassword = catchAsyncError(async (req, res, next) => {
   if (!user) {
     return next(new ErrorHandler('User not found!', 404));
   }
-  const token = await user.generatePasswordResetToken();
-  if(!token){
-    return next(new ErrorHandler("token not found"),401)
-  }
-  const url = `${process.env.FORNTEND_URL}/forgot/password/${token}`;
-  const message = `Click this URL below to reset your Password. \n \n ${url} \n \m If you didn't request this, you can safely ignore this email.`;
+  //normal token created by crypto
+  const token = user.generatePasswordResetToken();
 
-  sendVerificationEmail(email, 'Please check your email!', message);
-  res.status(200).json({
-    success: true,
-    message: `Please check your email!`,
-  });
+  if (!token) {
+    return next(new ErrorHandler('token not found'), 401);
+  }
+  //if I don't save the user, the resetToken won't be saved in the database
+  await user.save();
+  const url = `${process.env.FORNTEND_URL}/reset/password/${token}`;
+  const message = `Click this URL below to reset your Password. \n \n ${url} \n \n If you didn't request this, you can safely ignore this email. \n email will expired in 20 minutes`;
+
+  try {
+    sendVerificationEmail(email, 'Password reset email', message);
+    res.status(200).json({
+      success: true,
+      message: `Please check your email!`,
+    });
+  } catch (error) {
+    user.resetVerificationToken = null;
+    user.resetVerificationTokenEXpire = null;
+    await user.save();
+    return next(
+      new ErrorHandler(
+        error.message ? error.message : 'Error from forgot password send!',
+        401
+      )
+    );
+  }
 });
 
-module.exports = { register, verifyOtp, login, forgotPassword };
+//reset your password
+
+const resetPassword = catchAsyncError(async (req, res, next) => {
+  //normal token created by crypto
+  const { token } = req.params;
+  if (!token) {
+    return next(new ErrorHandler('reset token missing!', 401));
+  }
+  const verifyToken = crypto.createHash('sha256').update(token).digest('hex');
+});
+
+module.exports = { register, verifyOtp, login, forgotPassword, resetPassword };
