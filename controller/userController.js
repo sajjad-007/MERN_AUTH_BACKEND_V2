@@ -244,7 +244,6 @@ const login = catchAsyncError(async (req, res, next) => {
     return next(new ErrorHandler('User Not found!', 401));
   }
   const isPasswordMatch = await user.compareHashPassword(password);
-  console.log(isPasswordMatch);
   if (!isPasswordMatch) {
     return next(new ErrorHandler('Invalid Email or Password!', 401));
   }
@@ -298,10 +297,37 @@ const forgotPassword = catchAsyncError(async (req, res, next) => {
 const resetPassword = catchAsyncError(async (req, res, next) => {
   //normal token created by crypto
   const { token } = req.params;
+
   if (!token) {
-    return next(new ErrorHandler('reset token missing!', 401));
+    return next(new ErrorHandler('Reset token missing!', 401));
   }
-  const verifyToken = crypto.createHash('sha256').update(token).digest('hex');
+  const resetVerificationToken = crypto
+    .createHash('sha256')
+    .update(token)
+    .digest('hex');
+  const user = await User.findOneAndUpdate({
+    resetVerificationToken: resetVerificationToken,
+    resetVerificationTokenEXpire: { $gt: Date.now() },
+  });
+
+  if (!user) {
+    return next(new ErrorHandler('Invalid token!', 401));
+  }
+
+  const { password, confirmPassword } = req.body;
+  if (!password || !confirmPassword) {
+    return next(new ErrorHandler('Credentials missing!', 401));
+  }
+  if (password !== confirmPassword) {
+    return next(
+      new ErrorHandler("password and confirm password dosen't match", 401)
+    );
+  }
+  user.password = password;
+  user.resetVerificationToken = null;
+  user.resetVerificationTokenEXpire = null;
+  await user.save();
+  genereateJwtTokenForBrowser(user, res, 200, 'Password update successfull!');
 });
 
 module.exports = { register, verifyOtp, login, forgotPassword, resetPassword };
