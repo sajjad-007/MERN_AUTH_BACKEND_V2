@@ -250,6 +250,30 @@ const login = catchAsyncError(async (req, res, next) => {
 
   genereateJwtTokenForBrowser(user, res, 200, 'Login Successfull!');
 });
+//log out
+const logOut = catchAsyncError(async (req, res, next) => {
+  res
+    .status(200)
+    .cookie('token', '', {
+      expires: new Date(Date.now()),
+      httpOnly: true,
+      secure: true,
+      sameSite: 'None',
+    })
+    .json({
+      success: true,
+      message: 'Logout successfull!',
+    });
+});
+//get loggedIn user all information
+const getUser = catchAsyncError(async (req, res, next) => {
+  const user = req.user;
+  res.status(200).json({
+    success: true,
+    message: 'Logged IN user info!',
+    user,
+  });
+});
 //forgot password
 const forgotPassword = catchAsyncError(async (req, res, next) => {
   const { email } = req.body;
@@ -330,4 +354,12 @@ const resetPassword = catchAsyncError(async (req, res, next) => {
   genereateJwtTokenForBrowser(user, res, 200, 'Password update successfull!');
 });
 
-module.exports = { register, verifyOtp, login, forgotPassword, resetPassword };
+module.exports = {
+  register,
+  verifyOtp,
+  login,
+  logOut,
+  getUser,
+  forgotPassword,
+  resetPassword,
+};
